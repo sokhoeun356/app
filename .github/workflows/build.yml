@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       web_url:
-        description: 'Link វេបសាយ (ឧ. https://google.com)'
+        description: 'Link វេបសាយ'
         required: true
-        default: 'https://google.com'
+        default: 'https://x1oneaiweb2app.com'
       app_name:
         description: 'ឈ្មោះ App'
         required: true
-        default: 'MyApp'
+        default: 'x1One Ai Web2app'
 
 jobs:
   build:
@@ -33,7 +33,7 @@ jobs:
 
       - name: Create Web2App Project
         run: |
-          mkdir -p app/src/main/java/com/my/app
+          mkdir -p app/src/main/java/com/xone/app
           mkdir -p app/src/main/res/values
 
           # settings.gradle
@@ -69,10 +69,10 @@ jobs:
               id 'com.android.application'
           }
           android {
-              namespace 'com.my.app'
+              namespace 'com.xone.app'
               compileSdk 34
               defaultConfig {
-                  applicationId "com.my.app"
+                  applicationId "com.xone.app"
                   minSdk 21
                   targetSdk 34
                   versionCode 1
@@ -93,6 +93,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <application
                   android:allowBackup="true"
                   android:label="@string/app_name"
@@ -110,16 +111,16 @@ jobs:
           </manifest>
           EOF
 
-          # strings.xml
-          cat << EOF > app/src/main/res/values/strings.xml
+          # strings.xml (ដាក់ឈ្មោះ App សុវត្ថិភាព)
+          cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">${{ github.event.inputs.app_name }}</string>
           </resources>
           EOF
 
-          # MainActivity.java
-          cat << EOF > app/src/main/java/com/my/app/MainActivity.java
-          package com.my.app;
+          # MainActivity.java (ដាក់ URL សុវត្ថិភាព)
+          cat << 'EOF' > app/src/main/java/com/xone/app/MainActivity.java
+          package com.xone.app;
           import android.annotation.SuppressLint;
           import android.os.Bundle;
           import android.webkit.WebSettings;
@@ -155,9 +156,9 @@ jobs:
       - name: Build APK with Gradle
         run: gradle assembleDebug
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Web2App-APK
+          name: x1OneAiWeb2app-APK
           path: app/build/outputs/apk/debug/*.apk
-          
+
