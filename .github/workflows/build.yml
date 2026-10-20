@@ -4,13 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       web_url:
-        description: 'Link វេបសាយ'
+        description: 'Website URL'
         required: true
         default: 'https://x1oneaiweb2app.com'
       app_name:
-        description: 'ឈ្មោះ App'
+        description: 'App Name'
         required: true
-        default: 'x1One Ai Web2app'
+        default: 'x1One AI Web2app'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -19,7 +22,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -28,13 +31,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Create Web2App Project
+      - name: Build Web2App Android Project
         run: |
           mkdir -p app/src/main/java/com/xone/app
           mkdir -p app/src/main/res/values
+          mkdir -p gradle/wrapper
 
           # settings.gradle
           cat << 'EOF' > settings.gradle
@@ -52,7 +53,7 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "Web2App"
+          rootProject.name = "x1OneWeb2App"
           include ':app'
           EOF
 
@@ -76,7 +77,15 @@ jobs:
                   minSdk 21
                   targetSdk 34
                   versionCode 1
-                  versionName "1.0"
+                  versionName "1.0.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+                  debug {
+                      debuggable true
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -101,7 +110,8 @@ jobs:
                   android:usesCleartextTraffic="true">
                   <activity
                       android:name=".MainActivity"
-                      android:exported="true">
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -111,37 +121,83 @@ jobs:
           </manifest>
           EOF
 
-          # strings.xml (ដាក់ឈ្មោះ App សុវត្ថិភាព)
-          cat << 'EOF' > app/src/main/res/values/strings.xml
+          # strings.xml
+          cat << EOF > app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">${{ github.event.inputs.app_name }}</string>
           </resources>
           EOF
 
-          # MainActivity.java (ដាក់ URL សុវត្ថិភាព)
+          # MainActivity.java (with x1One AI session-based branding bar)
           cat << 'EOF' > app/src/main/java/com/xone/app/MainActivity.java
           package com.xone.app;
           import android.annotation.SuppressLint;
           import android.os.Bundle;
+          import android.view.View;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
           import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
               private WebView webView;
+              private static boolean isBrandingClosed = false;
+
               @SuppressLint("SetJavaScriptEnabled")
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+                  
+                  FrameLayout root = new FrameLayout(this);
                   webView = new WebView(this);
-                  setContentView(webView);
-                  WebSettings webSettings = webView.getSettings();
-                  webSettings.setJavaScriptEnabled(true);
-                  webSettings.setDomStorageEnabled(true);
+                  root.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+
+                  // x1One AI Session Branding Bar
+                  LinearLayout bar = new LinearLayout(this);
+                  bar.setOrientation(LinearLayout.HORIZONTAL);
+                  bar.setBackgroundColor(0xEE0E1526);
+                  bar.setPadding(30, 20, 30, 20);
+                  
+                  TextView tv = new TextView(this);
+                  tv.setText("⚡ x1One AI Web2app Engine");
+                  tv.setTextColor(0xFFFACC15);
+                  tv.setTextSize(12);
+                  tv.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1.0f));
+                  bar.addView(tv);
+
+                  TextView closeBtn = new TextView(this);
+                  closeBtn.setText(" ✕ ");
+                  closeBtn.setTextColor(0xFFFFFFFF);
+                  closeBtn.setTextSize(14);
+                  closeBtn.setOnClickListener(v -> {
+                      bar.setVisibility(View.GONE);
+                      isBrandingClosed = true;
+                  });
+                  bar.addView(closeBtn);
+
+                  FrameLayout.LayoutParams barParams = new FrameLayout.LayoutParams(-1, -2);
+                  barParams.gravity = android.view.Gravity.BOTTOM;
+                  root.addView(bar, barParams);
+
+                  if (isBrandingClosed) {
+                      bar.setVisibility(View.GONE);
+                  }
+
+                  setContentView(root);
+
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setUseWideViewPort(true);
+                  s.setLoadWithOverviewMode(true);
                   webView.setWebViewClient(new WebViewClient());
                   webView.loadUrl("${{ github.event.inputs.web_url }}");
               }
+
               @Override
               public void onBackPressed() {
                   if (webView.canGoBack()) {
@@ -153,12 +209,26 @@ jobs:
           }
           EOF
 
-      - name: Build APK with Gradle
-        run: gradle assembleDebug
+          # Gradle Wrapper Configuration
+          cat << 'EOF' > gradle/wrapper/gradle-wrapper.properties
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          networkTimeout=10000
+          validateDistributionUrl=true
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
 
-      - name: Upload APK
+          # Download official gradle wrapper executable
+          curl -s -o gradlew https://raw.githubusercontent.com/gradle/gradle/master/gradlew
+          chmod +x gradlew
+
+      - name: Compile Real Android APK with Gradle
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload Output APK
         uses: actions/upload-artifact@v4
         with:
-          name: x1OneAiWeb2app-APK
+          name: x1OneAI-Web2App-APK
           path: app/build/outputs/apk/debug/*.apk
-
